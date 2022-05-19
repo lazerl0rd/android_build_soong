@@ -213,6 +213,21 @@ func (c *Cmd) wrapSandbox() {
 		sandboxArgs = append(sandboxArgs, "-N")
 	}
 
+	// Add ccache's cache directory as a writable path, if USE_CCACHE is set.
+	if useCcache, _ := c.config.Environment().Get("USE_CCACHE"); useCcache == "1" {
+		ccacheExec, _ := c.config.Environment().Get("CCACHE_EXEC")
+		if out, err := exec.Command(ccacheExec, "-k", "cache_dir").Output(); err == nil {
+			sandboxArgs = append(sandboxArgs, "-B", strings.ReplaceAll(string(out[:]), "\n", ""))
+		} else {
+			if ccacheDir, _ := c.config.Environment().Get("CCACHE_DIR"); ccacheDir != "" {
+				c.ctx.Verboseln("failed to invoke ccache, falling back to using CCACHE_DIR for cache directory")
+				sandboxArgs = append(sandboxArgs, "-B", ccacheDir)
+			} else {
+				c.ctx.Println("failed to invoke ccache with %s", err)
+			}
+		}
+	}
+
 	// Stop nsjail from parsing arguments
 	sandboxArgs = append(sandboxArgs, "--")
 
